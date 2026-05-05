@@ -596,7 +596,7 @@
 
         row.innerHTML = `
             <span class="w-4 shrink-0 text-slate-500 font-mono text-right font-bold text-xs">${inputRowCount}.</span>
-            <input type="text" placeholder="Nama" value="${pName}" class="min-w-0 flex-grow bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white text-sm name-input outline-none transition" onkeydown="handleEnter(event, ${inputRowCount})">
+            <input type="text" placeholder="Nama" value="${pName}" class="min-w-0 flex-grow bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white text-sm name-input outline-none transition" onkeyup="handleEnter(event, ${inputRowCount})" enterkeyhint="next">
             <select class="w-16 shrink-0 bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white font-bold tier-input text-sm outline-none">
                 <option value="A" ${pTier==='A'?'selected':''}>A</option><option value="B" ${pTier==='B'?'selected':''}>B</option><option value="C" ${pTier==='C'?'selected':''}>C</option><option value="D" ${pTier==='D'?'selected':''}>D</option>
             </select>
@@ -607,8 +607,16 @@
     }
 
     function handleEnter(e, rowId) {
-        if (e.key === 'Enter') { e.preventDefault(); if (rowId === inputRowCount) addInputRow(true); else document.getElementById(`input-row-${rowId + 1}`)?.querySelector('.name-input')?.focus(); }
+    // Tambahkan fallback keyCode === 13 khusus untuk mobile/Android
+    if (e.key === 'Enter' || e.keyCode === 13) { 
+        e.preventDefault(); 
+        if (rowId === inputRowCount) {
+            addInputRow(true); 
+        } else {
+            document.getElementById(`input-row-${rowId + 1}`)?.querySelector('.name-input')?.focus(); 
+        }
     }
+}
 
     function toggleRoundView() {
         viewMode = viewMode === 'list' ? 'pager' : 'list';
