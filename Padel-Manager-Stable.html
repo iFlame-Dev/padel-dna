@@ -1,0 +1,1342 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Padel Manager v40</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        html { scroll-behavior: smooth; }
+        body { -webkit-tap-highlight-color: transparent; }
+        
+        .fade-in { animation: fadeIn 0.3s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        @keyframes slideInFade {
+            from { opacity: 0; transform: translateY(-30px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .round-enter { animation: slideInFade 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+
+        @keyframes pulseSwap {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.7); }
+            50% { transform: scale(1.03); box-shadow: 0 0 0 10px rgba(52, 211, 153, 0); border-color: #34d399; }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
+        }
+        .anim-swap { animation: pulseSwap 0.5s ease-out forwards; }
+
+        .hidden-important { display: none !important; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        ::-webkit-scrollbar { height: 6px; width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        
+        body.hide-marking .tier-badge { display: none !important; }
+
+        /* HIDE MARKED ELEMENTS IN NON-MARKED MODE */
+        body.non-marked-mode .tier-input { display: none !important; }
+        body.non-marked-mode .tier-badge { display: none !important; }
+        body.non-marked-mode .hint-marked { display: none !important; }
+        body.non-marked-mode .hint-unmarked { display: inline !important; }
+        .hint-unmarked { display: none; } /* Hidden by default in marked mode */
+
+        .score-box { color: #fff; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; font-size: 1.875rem; font-weight: 700; cursor: pointer; border-radius: 6px; transition: transform 0.1s; z-index: 20; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        .score-box:active { transform: scale(0.95); }
+        .score-unfilled { color: #64748b; }
+
+        .toggle-checkbox:checked { right: 0; border-color: #34d399; }
+        .toggle-checkbox:checked + .toggle-label { background-color: #34d399; }
+
+        /* HIDE LEADERBOARD COMPLETELY IN SETUP MODE */
+        body.setup-mode #pane-leaderboard { display: none !important; }
+        body.setup-mode #lb-backdrop { display: none !important; }
+
+        /* OFF-CANVAS LEADERBOARD DRAWER CSS (Mobile Only) */
+        @media (max-width: 767px) {
+            .lb-responsive {
+                position: fixed; top: 0; right: 0; height: 100dvh;
+                width: 85vw; max-width: 400px;
+                transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                z-index: 50; display: flex; flex-direction: column;
+                background-color: #1e293b; border-left: 1px solid #334155; border-radius: 0;
+            }
+            .lb-responsive.open { transform: translateX(0); }
+            
+            .lb-backdrop {
+                position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(2px);
+                z-index: 40; opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+            }
+            .lb-backdrop.open { opacity: 1; pointer-events: auto; }
+        }
+
+        /* DESKTOP LEADERBOARD ALWAYS ON (If Not Setup Mode) */
+        @media (min-width: 768px) {
+            body:not(.setup-mode) .lb-responsive {
+                width: 400px !important; min-width: 400px !important; transform: none !important;
+                display: flex !important; flex-direction: column !important; z-index: 10 !important;
+            }
+            #btn-toggle-lb { display: none !important; }
+            .lb-backdrop { display: none !important; }
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans h-[100dvh] w-full overflow-hidden flex flex-col setup-mode relative">
+
+<!-- ================= GLOBAL HEADER ================= -->
+<header id="main-header" class="shrink-0 mx-auto w-[calc(100%-2rem)] md:w-[calc(100%-3rem)] max-w-7xl bg-slate-800 shadow-lg border border-slate-700 p-4 rounded-2xl flex flex-row justify-between items-center gap-4 mt-4 z-30">
+    <div class="flex items-center gap-4">
+        <div>
+            <h1 class="text-xl md:text-2xl font-bold text-emerald-400">Padel DNA</h1>
+            <p class="text-amber-400 font-mono mt-1 text-xs" id="header-subtitle">Padel Manager - v40</p>
+        </div>
+    </div>
+    
+    <div class="flex items-center gap-2">
+        <!-- Setup Mode Buttons -->
+        <button type="button" id="btn-random-testcase" onclick="generateRandomTestcase()" class="text-xs bg-blue-600 hover:bg-blue-500 text-white px-3 py-2.5 rounded-lg transition font-bold shadow border border-blue-500 flex items-center gap-1.5 shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg> Random Test
+        </button>
+        
+        <!-- Manager Mode Buttons -->
+        <button type="button" id="btn-config" onclick="goToSetup()" class="hidden-important p-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition shadow border border-slate-600 shrink-0" title="Config">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+        </button>
+        
+        <button type="button" id="btn-toggle-view" onclick="toggleRoundView()" class="hidden-important p-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition shadow border border-slate-600 shrink-0" title="Switch View">
+            <svg id="icon-view-pager" class="w-5 h-5 text-slate-300 hidden-important" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"></path></svg>
+            <svg id="icon-view-list" class="w-5 h-5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+        </button>
+
+        <button type="button" id="btn-toggle-marking" onclick="toggleMarking()" class="hidden-important p-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition shadow border border-slate-600 shrink-0" title="Toggle Marking">
+            <span id="mark-icon" class="text-emerald-400">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+            </span>
+        </button>
+
+        <!-- Leaderboard Toggle (Mobile Only, Visible in Config & Manager) -->
+        <button type="button" id="btn-toggle-lb" onclick="toggleLB()" class="hidden-important md:hidden p-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition shadow border border-emerald-500 shrink-0" title="Leaderboard">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+        </button>
+    </div>
+</header>
+
+<!-- ================= MAIN CONTENT AREA ================= -->
+<main id="main-content" class="flex-grow overflow-hidden max-w-7xl mx-auto w-[calc(100%-2rem)] md:w-[calc(100%-3rem)] flex flex-col md:flex-row gap-4 md:gap-6 items-start pb-4 pt-4">
+    
+    <!-- LEFT PANE: DYNAMIC CONTENT -->
+    <div id="left-pane" class="h-full flex-grow flex flex-col min-w-0 w-full relative bg-slate-800 md:bg-transparent md:p-0 rounded-2xl md:rounded-none overflow-hidden border border-slate-700 md:border-none">
+        
+        <!-- SCROLLABLE AREA -->
+        <div id="left-scroll-area" class="flex-grow overflow-y-auto hide-scrollbar w-full relative p-4 md:p-0">
+            
+            <!-- 1. SETUP VIEW (CONFIG) -->
+            <div id="setup-container" class="w-full fade-in flex-shrink-0 flex flex-col gap-6 md:bg-slate-800 md:p-6 md:rounded-2xl md:shadow-xl md:border md:border-slate-700">
+                <div class="space-y-6 flex-grow">
+                    <!-- Tournament Info -->
+                    <div class="bg-slate-900 p-4 rounded-xl border border-slate-700 grid grid-cols-1 md:grid-cols-2 gap-4 mt-0">
+                        <div class="md:col-span-2 border-b border-slate-800 pb-2 mb-2"><h2 class="text-lg font-bold text-amber-400">Tournament Info</h2></div>
+                        
+                        <div class="md:col-span-2"><label class="text-[10px] text-slate-400 font-mono uppercase">Nama Event</label><input type="text" id="cfg-name" placeholder="Padel Weekend" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-2 text-white text-sm outline-none"></div>
+                        
+                        <div class="flex gap-2 md:col-span-2">
+                            <div class="w-1/2"><label class="text-[10px] text-slate-400 font-mono uppercase">Tipe Game</label>
+                                <select id="cfg-type" onchange="updateMarkedMode()" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-2 text-white text-sm outline-none font-bold text-emerald-400">
+                                    <option value="marked_mexicano">Marked Mexicano</option>
+                                    <option value="marked_americano">Marked Americano</option>
+                                    <option value="mexicano">Mexicano (Pure)</option>
+                                    <option value="americano">Americano (Pure)</option>
+                                </select>
+                            </div>
+                            <div class="w-1/2"><label class="text-[10px] text-slate-400 font-mono uppercase">Sort By</label>
+                                <select id="cfg-sort" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-2 text-white text-sm outline-none">
+                                    <option value="points">Points > Wins > Diff</option><option value="wins">Wins > Points > Diff</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-2">
+                            <div class="w-1/2"><label class="text-[10px] text-slate-400 font-mono uppercase">Tgl Mulai</label><input type="date" id="cfg-date" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-2 text-white text-sm outline-none"></div>
+                            <div class="w-1/2"><label class="text-[10px] text-slate-400 font-mono uppercase">Jam</label><input type="time" id="cfg-time" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-2 text-white text-sm outline-none"></div>
+                        </div>
+                        <div class="flex gap-2">
+                            <div class="w-1/2"><label class="text-[10px] text-slate-400 font-mono uppercase">Durasi (Menit)</label><input type="number" id="cfg-duration" value="120" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-2 text-white text-sm outline-none text-center"></div>
+                            <div class="w-1/2"><label class="text-[10px] text-slate-400 font-mono uppercase">Poin per Round</label><input type="number" id="cfg-points" value="21" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-2 text-emerald-400 text-sm outline-none text-center font-bold"></div>
+                        </div>
+                        <div class="flex gap-2 md:col-span-2">
+                            <div class="w-1/2"><label class="text-[10px] text-slate-400 font-mono uppercase">Win Bonus (Pts)</label><input type="number" id="cfg-bonus" value="0" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-2 text-white text-sm outline-none text-center"></div>
+                            <div class="w-1/2"><label class="text-[10px] text-slate-400 font-mono uppercase">Rest Bonus (Pts)</label><input type="number" id="cfg-rest-bonus" value="0" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-2 text-white text-sm outline-none text-center"></div>
+                        </div>
+                    </div>
+
+                    <!-- Court Config -->
+                    <div class="bg-slate-900 p-4 rounded-xl border border-slate-700">
+                        <div class="flex items-center justify-between mb-4">
+                            <label class="font-bold text-slate-300">Jumlah Lapangan:</label>
+                            <div class="flex items-center gap-2">
+                                <button type="button" onclick="modCourt(-1)" class="bg-slate-700 hover:bg-slate-600 w-8 h-8 rounded-lg font-bold text-white transition shadow">-</button>
+                                <input type="number" id="input-courts" min="1" value="1" oninput="renderCourtNameInputs()" class="w-14 bg-slate-800 border border-slate-600 rounded-lg p-1 text-white text-center font-bold outline-none pointer-events-none" readonly>
+                                <button type="button" onclick="modCourt(1)" class="bg-slate-700 hover:bg-slate-600 w-8 h-8 rounded-lg font-bold text-white transition shadow">+</button>
+                            </div>
+                        </div>
+                        <div id="court-names-container" class="grid grid-cols-2 md:grid-cols-3 gap-3 border-t border-slate-700 pt-4"></div>
+                    </div>
+
+                    <!-- Player Input -->
+                    <div class="bg-slate-700/30 p-4 md:p-5 rounded-xl border border-slate-600 flex flex-col min-w-0 mb-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <label class="block text-sm font-bold text-slate-400 shrink-0">Data Pemain</label>
+                            <button type="button" onclick="toggleInputMode()" class="text-xs bg-slate-600 hover:bg-slate-500 text-white px-3 py-2 rounded-lg transition font-bold shadow flex items-center gap-1.5 shrink-0" id="btn-toggle-input">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg> Ganti Teks
+                            </button>
+                        </div>
+                        
+                        <div id="mode-rows" class="space-y-2 flex-grow min-w-0 w-full overflow-hidden">
+                            <div class="text-[10px] font-normal text-slate-500 mb-2 uppercase tracking-wide">* Tekan 'Enter' di kolom nama untuk baris baru</div>
+                            <div id="dynamic-player-inputs" class="space-y-2 w-full"></div>
+                        </div>
+
+                        <div id="mode-text" class="hidden-important w-full">
+                            <div class="text-xs font-normal text-slate-400 mb-3 bg-slate-800 p-3 rounded-lg border border-slate-700">
+                                Format: <b class="text-emerald-400"><span class="hint-marked">NAMA - MARKING</span><span class="hint-unmarked">NAMA</span></b><br>
+                                Contoh: <span class="font-mono text-amber-400"><span class="hint-marked">Adi s - A</span><span class="hint-unmarked">Adi s</span></span>
+                            </div>
+                            <textarea id="bulk-player-input" rows="8" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 outline-none font-mono text-sm leading-relaxed"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. MANAGER VIEW (ROUNDS) -->
+            <div id="view-manager" class="hidden-important w-full flex-col fade-in md:bg-slate-800 md:p-6 md:rounded-2xl md:border border-slate-700">
+                <!-- Top Info Card -->
+                <div class="bg-slate-800 md:bg-slate-900 rounded-xl p-4 border border-slate-700 mb-2 shadow-sm flex-shrink-0">
+                    <div class="flex justify-between items-center border-b border-slate-700 pb-3 mb-3">
+                        <h2 class="text-xl font-bold flex items-center gap-2 text-white">
+                            <svg class="w-6 h-6 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                            <span id="info-event-name">Test Event</span>
+                        </h2>
+                    </div>
+                    <div class="grid grid-cols-2 gap-y-2 text-xs text-slate-400 font-medium">
+                        <div class="flex items-center gap-1.5"><svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7" /></svg> <span id="info-game-type">Americano</span></div>
+                        <div class="text-right flex items-center justify-end gap-1.5"><svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg> <span id="info-date-time">04/30/2026 10:00 PM</span></div>
+                        <div class="flex items-center gap-1.5"><svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg> <span id="info-points">21 Points</span></div>
+                        <div class="text-right flex items-center justify-end gap-1.5"><svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg> <span id="info-players-courts">7 Players • 1 Courts</span></div>
+                    </div>
+                    <div class="mt-3 pt-3 border-t border-slate-700 text-center text-xs font-bold text-emerald-400" id="info-balance">Balance in: -</div>
+                </div>
+
+                <!-- Pager Slider Container -->
+                <div id="round-pager" class="flex gap-2 overflow-x-auto hide-scrollbar mb-2 flex-shrink-0 pt-4 pb-1 pl-1"></div>
+
+                <!-- Matches Container -->
+                <div id="bracket-container" class="w-full mt-4">
+                    <div class="text-center text-slate-500 mt-10" id="empty-bracket-msg">Menyiapkan Turnamen...</div>
+                </div>
+            </div>
+            
+        </div>
+        
+        <!-- Setup Action Bar (DOCKED AT THE BOTTOM OF THE LEFT PANE) -->
+        <div id="setup-action-bar" class="shrink-0 bg-slate-900 md:bg-transparent p-4 border-t border-slate-700 md:border-none flex gap-4 w-full z-20">
+            <button type="button" id="btn-cancel-edit" onclick="cancelEdit()" class="hidden-important w-1/4 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold py-3 rounded-xl transition border border-slate-600 shadow-lg">Cancel</button>
+            <button type="button" id="btn-start-save" onclick="startTournament()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-blue-900/50 text-lg flex items-center justify-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <span id="btn-start-text">Start</span>
+            </button>
+        </div>
+        
+    </div>
+
+    <!-- RIGHT PANE: LEADERBOARD DRAWER (Off-Canvas on Mobile, Fixed Panel on Desktop) -->
+    <div id="lb-backdrop" class="lb-backdrop" onclick="toggleLB()"></div>
+    
+    <div id="pane-leaderboard" class="lb-responsive flex-col h-full w-full shrink-0 bg-slate-800 md:rounded-2xl md:border border-slate-700 md:shadow-xl mt-0 overflow-hidden">
+        <!-- Header of the Drawer (Mobile Only) -->
+        <div class="md:hidden p-4 border-b border-slate-700 flex justify-between items-center bg-slate-900 shrink-0">
+            <h2 class="text-lg font-bold text-emerald-400 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                Leaderboard
+            </h2>
+            <button onclick="toggleLB()" class="text-slate-400 hover:text-white p-1 rounded transition focus:outline-none">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+        </div>
+
+        <!-- Table Container -->
+        <div class="overflow-y-auto flex-grow w-full relative">
+            <table class="w-full text-sm text-left border-collapse block md:table">
+                <thead class="text-xs text-slate-400 uppercase bg-slate-900 md:bg-slate-800 sticky top-0 z-20 shadow-md md:shadow-none border-b border-slate-700 w-full table-header-group">
+                    <tr>
+                        <th class="px-2 py-4 md:py-3 text-center whitespace-nowrap w-8 min-w-[32px]">No</th>
+                        <th class="pl-2 pr-3 py-4 md:py-3 whitespace-nowrap w-full">Player</th>
+                        <th class="px-1 py-4 md:py-3 text-center whitespace-nowrap">G</th>
+                        <th class="px-1 py-4 md:py-3 text-center whitespace-nowrap min-w-[60px]">W-L</th>
+                        <th id="th-w-bonus" class="px-1 py-4 md:py-3 text-center whitespace-nowrap" title="Win Bonus">W+</th>
+                        <th id="th-r-bonus" class="px-1 py-4 md:py-3 text-center whitespace-nowrap" title="Rest Bonus">R+</th>
+                        <th class="pr-3 pl-1 py-4 md:py-3 text-center whitespace-nowrap">Diff</th>
+                        <th class="px-2 py-4 md:py-3 text-center whitespace-nowrap">Pts</th>
+                    </tr>
+                </thead>
+                <tbody id="leaderboard-body" class="w-full table-row-group"></tbody>
+            </table>
+        </div>
+    </div>
+
+</main>
+
+<!-- ================= MODALS ================= -->
+<div id="modal-score" class="fixed inset-0 bg-black/80 hidden-important items-center justify-center z-50 p-4">
+    <div class="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl max-w-sm w-full p-4 md:p-6 relative fade-in flex flex-col">
+        <button type="button" onclick="closeScoreModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white transition">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+        <h3 class="text-xl font-bold text-white mb-4 border-b border-slate-700 pb-3 flex items-center gap-2" id="score-modal-title">Edit Score</h3>  
+        <p class="text-center text-2xl text-emerald-400 mb-6 font-bold tracking-tight leading-tight mt-1" id="score-modal-team-name">Pemain 1 & Pemain 2</p>
+        <div class="grid grid-cols-5 gap-2" id="score-grid"></div>
+        <div class="mt-6 flex justify-center">
+            <button type="button" onclick="setScore(null)" class="text-xs bg-red-900/50 hover:bg-red-600 text-red-300 hover:text-white border border-red-700/50 py-2 px-6 rounded-lg transition font-bold tracking-wider">RESET SCORE</button>
+        </div>
+    </div>
+</div>
+
+<div id="modal-swap" class="fixed inset-0 bg-black/80 hidden-important items-center justify-center z-50 p-4">
+    <div class="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl max-w-2xl w-full p-4 md:p-6 relative fade-in flex flex-col max-h-[90vh]">
+        <h3 class="text-xl font-bold text-white mb-4 border-b border-slate-700 pb-3 flex items-center gap-2" id="swap-modal-title">Edit Court</h3>
+        
+        <!-- SIDE BY SIDE EDIT COURT -->
+        <div class="bg-slate-900 rounded-xl border border-slate-700 p-2 mb-4 flex relative items-center gap-10">
+            <!-- Tim 1 (Kiri) -->
+            <div class="w-1/2 flex flex-col gap-3">
+                <button type="button" onclick="selectSlotToSwap(1, 0)" id="slot-t1-0" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-600 py-3 px-2 rounded-lg truncate text-center text-sm font-bold text-white transition ring-0"></button>
+                <button type="button" onclick="selectSlotToSwap(1, 1)" id="slot-t1-1" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-600 py-3 px-2 rounded-lg truncate text-center text-sm font-bold text-white transition ring-0"></button>
+            </div>
+            
+            <!-- VS -->
+            <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-slate-400 font-bold italic text-lg bg-slate-900 z-10">VS</div>
+            
+            <!-- Tim 2 (Kanan) -->
+            <div class="w-1/2 flex flex-col gap-3">
+                <button type="button" onclick="selectSlotToSwap(2, 0)" id="slot-t2-0" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-600 py-3 px-2 rounded-lg truncate text-center text-sm font-bold text-white transition ring-0"></button>
+                <button type="button" onclick="selectSlotToSwap(2, 1)" id="slot-t2-1" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-600 py-3 px-2 rounded-lg truncate text-center text-sm font-bold text-white transition ring-0"></button>
+            </div>
+        </div>
+
+        <p class="text-xs text-slate-400 mb-2">Pilih pemain pengganti:</p>
+        <div class="overflow-y-auto flex-grow bg-slate-900/50 p-2 rounded-xl border border-slate-700 mb-4">
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2" id="swap-player-grid"></div>
+        </div>
+        
+        <div class="flex gap-3 mt-auto">
+            <button type="button" onclick="closeSwapModal()" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-xl transition shadow border border-slate-600">Selesai / Tutup</button>
+        </div>
+    </div>
+</div>
+
+<!-- ================= JAVASCRIPT LOGIC ================= -->
+<script>
+    // --- GLOBAL STATE ---
+    let players = []; 
+    let originalPlayersState = []; 
+    let numCourts = 1;
+    let customCourtNames = {}; 
+    let currentRound = 0;
+    let playerIdCounter = 1;
+    let matches = {}; 
+    let inputRowCount = 0;
+    let isTournamentStarted = false;
+    let isBulkMode = false;
+    let showMarking = true;
+    let lbOpen = false;
+    let currentView = 'setup';
+    
+    // Mode Default = Pager
+    let viewMode = 'pager';
+    let activeRoundTab = 1;
+    let config = { maxPoints: 21, type: 'marked_mexicano', bonus: 0, restBonus: 0 };
+
+    const iconEyeOpen = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>`;
+    const iconEyeClosed = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>`;
+
+    function updateMarkedMode() {
+        let el = document.getElementById('cfg-type');
+        if(!el) return;
+        let isMarked = el.value.includes('marked');
+        if(isMarked) {
+            document.body.classList.remove('non-marked-mode');
+        } else {
+            document.body.classList.add('non-marked-mode');
+        }
+    }
+
+    function initPlayerData() {
+        addInputRow(false, '', '', 'B', true);
+        addInputRow(false, '', '', 'B', true);
+        addInputRow(false, '', '', 'B', true);
+    }
+
+    function generateRandomTestcase() {
+        const namesPool = ["Theo", "Budi", "Andi", "Clara", "Kevin", "Rara", "Maya", "Surya", "Hermine", "Dika", "Reza", "Gilang", "Nisa", "Tono", "Putri", "Raditya", "Sisca", "Fajar", "Ayu", "Joko"];
+        const tiersPool = ["A", "B", "C", "D"];
+        
+        let randomPlayerCount = Math.floor(Math.random() * (20 - 5 + 1)) + 5;
+        let randomCourts = 1;
+        if (randomPlayerCount >= 15) randomCourts = 3;
+        else if (randomPlayerCount >= 10) randomCourts = 2;
+
+        let elCourts = document.getElementById('input-courts');
+        if(elCourts) elCourts.value = randomCourts;
+        renderCourtNameInputs();
+
+        let shuffledNames = namesPool.sort(() => 0.5 - Math.random());
+        let selectedNames = shuffledNames.slice(0, randomPlayerCount);
+
+        let isMarked = document.getElementById('cfg-type')?.value.includes('marked');
+
+        if (isBulkMode) {
+            let elBulk = document.getElementById('bulk-player-input');
+            if(elBulk) {
+                elBulk.value = selectedNames.map(name => {
+                    let randTier = tiersPool[Math.floor(Math.random() * tiersPool.length)];
+                    return isMarked ? `${name} - ${randTier}` : `${name}`;
+                }).join('\n');
+            }
+        } else {
+            let elDyn = document.getElementById('dynamic-player-inputs');
+            if(elDyn) elDyn.innerHTML = '';
+            inputRowCount = 0;
+            selectedNames.forEach(name => {
+                let randomTier = tiersPool[Math.floor(Math.random() * tiersPool.length)];
+                addInputRow(false, '', name, randomTier, true);
+            });
+        }
+
+        let elCfgName = document.getElementById('cfg-name'); if(elCfgName) elCfgName.value = "Testcase Padel Tournament";
+        let today = new Date();
+        let elCfgDate = document.getElementById('cfg-date'); if(elCfgDate) elCfgDate.value = today.toISOString().split('T')[0];
+        let elCfgTime = document.getElementById('cfg-time'); if(elCfgTime) elCfgTime.value = "15:00";
+    }
+
+    function gcd(a, b) { return b === 0 ? a : gcd(b, a % b); }
+    function getBalanceText() {
+        let activeCount = players.filter(p => !p.isWalkout).length;
+        if(activeCount === 0 || numCourts === 0) return '-';
+        let slots = numCourts * 4;
+        let cycle = activeCount / gcd(activeCount, slots);
+        if (!Number.isInteger(cycle)) cycle = Math.ceil(cycle); 
+        
+        let rem = cycle - (currentRound % cycle);
+        if (rem === cycle && currentRound > 0) return "0 - WELL BALANCE";
+        return rem;
+    }
+
+    function getTierStyle(tier) {
+        switch(tier) {
+            case 'A': return 'bg-emerald-900/40 text-emerald-300 border-emerald-700/50';
+            case 'B': return 'bg-blue-900/40 text-blue-300 border-blue-700/50';
+            case 'C': return 'bg-amber-900/40 text-amber-300 border-amber-700/50';
+            case 'D': return 'bg-rose-900/40 text-rose-300 border-rose-700/50';
+            default: return 'bg-slate-800 text-slate-300 border-slate-600';
+        }
+    }
+
+    function getCourtStyle(courtId) {
+        const colors = ['bg-indigo-900/50 text-indigo-300 border-indigo-700/50', 'bg-fuchsia-900/50 text-fuchsia-300 border-fuchsia-700/50', 'bg-sky-900/50 text-sky-300 border-sky-700/50', 'bg-lime-900/50 text-lime-300 border-lime-700/50', 'bg-orange-900/50 text-orange-300 border-orange-700/50', 'bg-violet-900/50 text-violet-300 border-violet-700/50', 'bg-pink-900/50 text-pink-300 border-pink-700/50'];
+        let idx = (parseInt(courtId) - 1) % colors.length;
+        return isNaN(idx) ? colors[0] : colors[idx];
+    }
+
+    function toggleLB() {
+        lbOpen = !lbOpen;
+        let lb = document.getElementById('pane-leaderboard');
+        let bd = document.getElementById('lb-backdrop');
+        
+        if(lbOpen) {
+            lb?.classList.add('open');
+            if(bd) { bd.classList.remove('hidden-important'); bd.classList.add('block', 'open'); }
+        } else {
+            lb?.classList.remove('open');
+            if(bd) { bd.classList.remove('block', 'open'); bd.classList.add('hidden-important'); }
+        }
+    }
+
+    function toggleMarking() {
+        showMarking = !showMarking;
+        document.body.classList.toggle('hide-marking', !showMarking);
+        let iconSpan = document.getElementById('mark-icon');
+        if(iconSpan) {
+            iconSpan.innerHTML = showMarking ? iconEyeOpen : iconEyeClosed;
+            iconSpan.className = showMarking ? 'text-emerald-400' : 'text-slate-400';
+        }
+        if(isTournamentStarted) {
+            if(currentRound > 0) renderAllRounds();
+            recalculateLeaderboard();
+        }
+    }
+
+    function modCourt(val) {
+        let el = document.getElementById('input-courts');
+        if(!el) return;
+        let curr = parseInt(el.value) || 1;
+        if (curr + val >= 1) { el.value = curr + val; renderCourtNameInputs(); }
+    }
+
+    function renderCourtNameInputs() {
+        let el = document.getElementById('input-courts');
+        let count = el ? (parseInt(el.value) || 1) : 1;
+        let container = document.getElementById('court-names-container');
+        if(!container) return;
+        container.innerHTML = '';
+        for(let i = 1; i <= count; i++) {
+            let defaultName = customCourtNames[i] || `Court ${i}`;
+            container.innerHTML += `<div class="flex flex-col"><label class="text-[10px] text-slate-400 mb-1 font-mono uppercase">Nama L${i}</label><input type="text" id="court-name-${i}" value="${defaultName}" class="bg-slate-800 border border-slate-600 rounded-lg p-2 text-sm text-white outline-none"></div>`;
+        }
+    }
+
+    function updateLiveInactiveState() {
+        if(!isTournamentStarted) return;
+        document.querySelectorAll('#dynamic-player-inputs > .player-row').forEach(row => {
+            let pId = row.dataset.id;
+            let isActive = row.querySelector('.active-checkbox').checked;
+            if(pId) {
+                let p = players.find(x => x.id == pId);
+                if(p) p.isWalkout = !isActive;
+            }
+        });
+        recalculateLeaderboard();
+    }
+
+    function toggleActiveVisual(el) {
+        let bg = el.parentElement.querySelector('.toggle-bg');
+        let dot = el.parentElement.querySelector('.toggle-dot');
+        if (el.checked) {
+            bg.classList.replace('bg-slate-600', 'bg-emerald-500');
+            dot.classList.add('translate-x-[16px]');
+        } else {
+            bg.classList.replace('bg-emerald-500', 'bg-slate-600');
+            dot.classList.remove('translate-x-[16px]');
+        }
+        updateLiveInactiveState();
+    }
+
+    function deleteRow(btn) {
+        let row = btn.closest('.player-row');
+        if(row) row.remove();
+        updateLiveInactiveState();
+    }
+
+    function toggleInputMode() {
+        isBulkMode = !isBulkMode;
+        document.getElementById('mode-rows')?.classList.toggle('hidden-important', isBulkMode);
+        document.getElementById('mode-text')?.classList.toggle('hidden-important', !isBulkMode);
+        
+        let btnTg = document.getElementById('btn-toggle-input');
+        if(btnTg) btnTg.innerHTML = isBulkMode ? 
+            `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg> Ganti ke Input Baris` : 
+            `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg> Ganti ke Input Teks`;
+        
+        let isMarked = document.getElementById('cfg-type')?.value.includes('marked');
+
+        if (isBulkMode) {
+            let textData = [];
+            document.querySelectorAll('#dynamic-player-inputs > .player-row').forEach(row => {
+                let name = row.querySelector('.name-input')?.value.trim() || '';
+                let tier = row.querySelector('.tier-input')?.value || 'B';
+                let isActive = row.querySelector('.active-checkbox')?.checked || false;
+                
+                if (name !== '') {
+                    if(isMarked) textData.push(`${name} - ${tier}${!isActive ? ' [OFF]' : ''}`);
+                    else textData.push(`${name}${!isActive ? ' [OFF]' : ''}`);
+                }
+            });
+            let blk = document.getElementById('bulk-player-input');
+            if(blk) blk.value = textData.join('\n');
+        } else {
+            let blk = document.getElementById('bulk-player-input');
+            if(!blk) return;
+            let lines = blk.value.split('\n');
+            let dyn = document.getElementById('dynamic-player-inputs');
+            if(dyn) dyn.innerHTML = ''; 
+            inputRowCount = 0;
+            let hasData = false;
+            lines.forEach(line => {
+                if (line.trim() === '') return;
+                hasData = true;
+                let isInactive = line.includes('[OFF]') || line.includes('[EXIT]');
+                let cleanLine = line.replace('[OFF]', '').replace('[EXIT]', '').trim();
+                
+                let match = cleanLine.match(/^(.+?)\s*-\s*([A-Da-d])$/i);
+                if (match) addInputRow(false, '', match[1].trim(), match[2].toUpperCase(), !isInactive);
+                else addInputRow(false, '', cleanLine, 'B', !isInactive);
+            });
+            if (!hasData) initPlayerData();
+        }
+    }
+
+    function addInputRow(autoFocus = false, pId = '', pName = '', pTier = 'B', isActive = true) {
+        inputRowCount++; const container = document.getElementById('dynamic-player-inputs');
+        if(!container) return;
+        const row = document.createElement('div'); row.className = "flex items-center gap-2 player-row"; row.id = `input-row-${inputRowCount}`; row.dataset.id = pId;
+        
+        let chk = isActive ? 'checked' : '';
+        let activeToggle = `
+            <label class="flex items-center cursor-pointer ml-1" title="Toggle Active Status">
+                <div class="relative">
+                    <input type="checkbox" class="sr-only active-checkbox" ${chk} onchange="toggleActiveVisual(this)">
+                    <div class="block w-8 h-4 rounded-full transition-colors toggle-bg ${isActive ? 'bg-emerald-500' : 'bg-slate-600'}"></div>
+                    <div class="absolute left-[2px] top-[2px] bg-white w-3 h-3 rounded-full transition-transform toggle-dot ${isActive ? 'translate-x-[16px]' : ''}"></div>
+                </div>
+            </label>
+            <button type="button" onclick="deleteRow(this)" class="shrink-0 text-slate-500 hover:text-red-400 p-1.5 transition ml-1" title="Hapus Baris">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+            </button>
+        `;
+
+        row.innerHTML = `
+            <span class="w-4 shrink-0 text-slate-500 font-mono text-right font-bold text-xs">${inputRowCount}.</span>
+            <input type="text" placeholder="Nama" value="${pName}" class="min-w-0 flex-grow bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white text-sm name-input outline-none transition" onkeyup="handleEnter(event, ${inputRowCount})" enterkeyhint="next">
+            <select class="w-16 shrink-0 bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white font-bold tier-input text-sm outline-none">
+                <option value="A" ${pTier==='A'?'selected':''}>A</option><option value="B" ${pTier==='B'?'selected':''}>B</option><option value="C" ${pTier==='C'?'selected':''}>C</option><option value="D" ${pTier==='D'?'selected':''}>D</option>
+            </select>
+            <div class="shrink-0 flex items-center">${activeToggle}</div>
+        `;
+        container.appendChild(row);
+        if (autoFocus) setTimeout(() => row.querySelector('.name-input')?.focus(), 10);
+    }
+
+    function handleEnter(e, rowId) {
+    // Tambahkan fallback keyCode === 13 khusus untuk mobile/Android
+    if (e.key === 'Enter' || e.keyCode === 13) { 
+        e.preventDefault(); 
+        if (rowId === inputRowCount) {
+            addInputRow(true); 
+        } else {
+            document.getElementById(`input-row-${rowId + 1}`)?.querySelector('.name-input')?.focus(); 
+        }
+    }
+}
+
+    function toggleRoundView() {
+        viewMode = viewMode === 'list' ? 'pager' : 'list';
+        document.getElementById('icon-view-list')?.classList.toggle('hidden-important', viewMode === 'list');
+        document.getElementById('icon-view-pager')?.classList.toggle('hidden-important', viewMode === 'pager');
+        document.getElementById('round-pager')?.classList.toggle('hidden-important', viewMode === 'list');
+        activeRoundTab = currentRound;
+        
+        let container = document.getElementById('bracket-container');
+        if(container) container.innerHTML = '';
+        
+        if(isTournamentStarted && currentRound > 0) {
+            renderAllRounds();
+            renderPager();
+        }
+    }
+
+    function renderPager() {
+        let p = document.getElementById('round-pager');
+        if(!p) return;
+        
+        if(viewMode === 'list') {
+            p.classList.add('hidden-important');
+            return;
+        } else {
+            p.classList.remove('hidden-important');
+        }
+
+        p.innerHTML = '';
+        for(let i=1; i<=currentRound; i++) {
+            let active = i === activeRoundTab ? 'bg-blue-600 text-white shadow ring-2 ring-blue-400' : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700';
+            
+            let roundMatches = Object.values(matches).filter(m => m.round === i);
+            let isComplete = roundMatches.length > 0 && roundMatches.every(m => m.score1 !== null && m.score2 !== null);
+            
+            let checkMark = isComplete ? `<span class="absolute -top-1.5 -right-1.5 bg-emerald-500 text-white rounded-full p-0.5 shadow border border-slate-900"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg></span>` : '';
+
+            p.innerHTML += `<button onclick="activeRoundTab=${i}; renderAllRounds(); renderPager();" class="relative px-5 py-2 rounded-lg font-bold text-sm min-w-fit transition ${active}">Round ${i} ${checkMark}</button>`;
+        }
+        p.scrollLeft = p.scrollWidth;
+    }
+
+	function setView(view) {
+        currentView = view;
+        let viewSetup = document.getElementById('setup-container');
+        let setupActionBar = document.getElementById('setup-action-bar');
+        let viewManager = document.getElementById('view-manager');
+        
+        let btnRand = document.getElementById('btn-random-testcase');
+        let btnGroup = document.getElementById('btn-group-manager');
+        let btnConfig = document.getElementById('btn-config');
+        let btnViewToggle = document.getElementById('btn-toggle-view');
+        let btnMarking = document.getElementById('btn-toggle-marking');
+        let btnLb = document.getElementById('btn-toggle-lb');
+
+        let isMarked = document.getElementById('cfg-type')?.value.includes('marked');
+
+        // Bersihkan state laci (drawer)
+        lbOpen = false;
+        document.getElementById('pane-leaderboard')?.classList.remove('open');
+        let bd = document.getElementById('lb-backdrop');
+        if(bd) {
+            bd.classList.add('hidden-important');
+            bd.classList.remove('block', 'open');
+        }
+
+        if (view === 'setup') {
+            document.body.classList.add('setup-mode'); 
+            viewSetup?.classList.remove('hidden-important');
+            setupActionBar?.classList.remove('hidden-important');
+            viewManager?.classList.add('hidden-important');
+            viewManager?.classList.remove('flex');
+            
+            btnRand?.classList.remove('hidden-important');
+            btnGroup?.classList.add('hidden-important');
+            
+            document.getElementById('btn-cancel-edit')?.classList.add('hidden-important');
+            let btnStartText = document.getElementById('btn-start-text');
+            if(btnStartText) btnStartText.innerText = "Start";
+
+        } else if (view === 'config') {
+            document.body.classList.remove('setup-mode'); 
+            viewSetup?.classList.remove('hidden-important');
+            setupActionBar?.classList.remove('hidden-important');
+            viewManager?.classList.add('hidden-important');
+            viewManager?.classList.remove('flex');
+            
+            btnRand?.classList.add('hidden-important');
+            btnGroup?.classList.remove('hidden-important');
+            btnConfig?.classList.add('hidden-important');
+            btnViewToggle?.classList.add('hidden-important');
+            btnMarking?.classList.add('hidden-important'); // Hide in config mode by default
+            btnLb?.classList.remove('hidden-important');
+            
+            document.getElementById('btn-cancel-edit')?.classList.remove('hidden-important');
+            let btnStartText = document.getElementById('btn-start-text');
+            if(btnStartText) btnStartText.innerText = "Save";
+
+        } else if (view === 'manager') {
+            document.body.classList.remove('setup-mode'); 
+            viewSetup?.classList.add('hidden-important');
+            setupActionBar?.classList.add('hidden-important');
+            viewManager?.classList.remove('hidden-important');
+            viewManager?.classList.add('flex');
+            
+            btnRand?.classList.add('hidden-important');
+            btnGroup?.classList.remove('hidden-important');
+            btnConfig?.classList.remove('hidden-important');
+            btnViewToggle?.classList.remove('hidden-important');
+            
+            // Only show marking toggle if it's a marked mode game
+            if(isMarked) btnMarking?.classList.remove('hidden-important');
+            else btnMarking?.classList.add('hidden-important');
+            
+            btnLb?.classList.remove('hidden-important');
+        }
+    }
+    
+    function startTournament() {
+        let elCrt = document.getElementById('input-courts');
+        numCourts = elCrt ? parseInt(elCrt.value) || 1 : 1;
+        
+        let elPts = document.getElementById('cfg-points');
+        config.maxPoints = elPts ? parseInt(elPts.value) || 21 : 21;
+        
+        config.type = document.getElementById('cfg-type')?.value || 'marked_mexicano';
+        config.sort = document.getElementById('cfg-sort')?.value || 'points';
+        config.bonus = parseInt(document.getElementById('cfg-bonus')?.value) || 0;
+        config.restBonus = parseInt(document.getElementById('cfg-rest-bonus')?.value) || 0;
+        config.name = document.getElementById('cfg-name')?.value || 'Padel Matchmaker';
+        config.date = document.getElementById('cfg-date')?.value || '-';
+        config.time = document.getElementById('cfg-time')?.value || '-';
+
+        let isMarked = config.type.includes('marked');
+
+        customCourtNames = {};
+        for(let i = 1; i <= numCourts; i++) {
+            let courtInput = document.getElementById(`court-name-${i}`);
+            customCourtNames[i] = courtInput && courtInput.value.trim() !== '' ? courtInput.value.trim() : `L${i}`;
+        }
+
+        let parsedData = [];
+
+        if (isBulkMode) {
+            let blk = document.getElementById('bulk-player-input');
+            if(blk) {
+                let lines = blk.value.split('\n');
+                for (let i = 0; i < lines.length; i++) {
+                    let line = lines[i].trim(); if (line === '') continue;
+                    let isInactive = line.includes('[OFF]') || line.includes('[EXIT]');
+                    let cleanLine = line.replace('[OFF]', '').replace('[EXIT]', '').trim();
+                    
+                    let match = cleanLine.match(/^(.+?)\s*-\s*([A-Da-d])$/i); 
+                    
+                    if (!match) {
+                        parsedData.push({ name: cleanLine, tier: 'B', pid: null, isInactive: isInactive });
+                    } else {
+                        let existingP = players.find(p => p.name.toLowerCase() === match[1].trim().toLowerCase());
+                        parsedData.push({ name: match[1].trim(), tier: match[2].toUpperCase(), pid: existingP ? existingP.id : null, isInactive: isInactive });
+                    }
+                }
+            }
+        } else {
+            document.querySelectorAll('#dynamic-player-inputs > .player-row').forEach(row => {
+                let name = row.querySelector('.name-input')?.value.trim() || '';
+                let tier = row.querySelector('.tier-input')?.value || 'B';
+                let pid = row.dataset.id;
+                let isActive = row.querySelector('.active-checkbox')?.checked || false;
+                if (name !== '') parsedData.push({ name: name, tier: tier, pid: pid ? parseInt(pid) : null, isInactive: !isActive });
+            });
+        }
+
+        let newPlayersArray = [];
+        parsedData.forEach(data => {
+            if (data.pid) {
+                let p = players.find(x => x.id === data.pid);
+                if (p) { 
+                    p.name = data.name; p.tier = data.tier; p.isWalkout = data.isInactive; 
+                    if(p.isWalkout) {
+                        p.status='rest'; p.court=null;
+                        if(currentRound > 0) {
+                            Object.values(matches).filter(mx => mx.round === currentRound).forEach(rm => {
+                                if(rm.t1.includes(p.id)) rm.t1[rm.t1.indexOf(p.id)] = null;
+                                if(rm.t2.includes(p.id)) rm.t2[rm.t2.indexOf(p.id)] = null;
+                            });
+                        }
+                    } 
+                    newPlayersArray.push(p); 
+                }
+            } else {
+                let p = players.find(x => x.name.toLowerCase() === data.name.toLowerCase());
+                if (p) { 
+                    p.tier = data.tier; p.isWalkout = data.isInactive; 
+                    if(p.isWalkout) {p.status='rest'; p.court=null;} 
+                    newPlayersArray.push(p); 
+                } 
+                else { newPlayersArray.push({ id: playerIdCounter++, name: data.name, tier: data.tier, status: 'rest', court: null, isWalkout: data.isInactive }); }
+            }
+        });
+
+        if (isTournamentStarted) {
+            players.forEach(oldP => { 
+                if (!newPlayersArray.find(nP => nP.id === oldP.id)) { 
+                    oldP.isWalkout = true; oldP.status = 'rest'; oldP.court = null; 
+                    if(currentRound > 0) {
+                        Object.values(matches).filter(mx => mx.round === currentRound).forEach(rm => {
+                            if(rm.t1.includes(oldP.id)) rm.t1[rm.t1.indexOf(oldP.id)] = null;
+                            if(rm.t2.includes(oldP.id)) rm.t2[rm.t2.indexOf(oldP.id)] = null;
+                        });
+                    }
+                    newPlayersArray.push(oldP); 
+                }
+            });
+        }
+        players = newPlayersArray;
+        
+        setView('manager');
+        
+        let elInfoName = document.getElementById('info-event-name'); if(elInfoName) elInfoName.innerText = config.name;
+        let elInfoType = document.getElementById('info-game-type'); if(elInfoType) elInfoType.innerText = config.type.replace('_',' ').replace(/\b\w/g, l => l.toUpperCase());
+        let elInfoPts = document.getElementById('info-points'); if(elInfoPts) elInfoPts.innerText = `${config.maxPoints} Points`;
+        let elInfoDT = document.getElementById('info-date-time'); if(elInfoDT) elInfoDT.innerText = `${config.date} ${config.time}`;
+        let elInfoPly = document.getElementById('info-players-courts'); if(elInfoPly) elInfoPly.innerText = `${players.filter(p=>!p.isWalkout).length} Players • ${numCourts} Courts`;
+
+        if (!isTournamentStarted) {
+            isTournamentStarted = true;
+            generateNextRound();
+        } else {
+            if (currentRound > 0) { renderAllRounds(); }
+            recalculateLeaderboard();
+        }
+    }
+
+    function goToSetup() {
+        originalPlayersState = JSON.parse(JSON.stringify(players));
+
+        let stats = {}; players.forEach(p => { stats[p.id] = { games: 0, wins: 0, losses: 0, points: 0, diff: 0, rests: 0 }; });
+        Object.values(matches).forEach(m => {
+            if (m.score1 !== null && m.score2 !== null) {
+                m.t1.forEach(id => { if (stats[id]) { stats[id].games++; stats[id].points += m.score1; stats[id].diff += (m.score1 - m.score2); if (m.score1 > m.score2) stats[id].wins++; }});
+                m.t2.forEach(id => { if (stats[id]) { stats[id].games++; stats[id].points += m.score2; stats[id].diff += (m.score2 - m.score1); if (m.score2 > m.score1) stats[id].wins++; }});
+            }
+        });
+        players.forEach(p => {
+            if(!p.isWalkout && currentRound > 0) stats[p.id].rests = Math.max(0, currentRound - stats[p.id].games);
+            else stats[p.id].rests = 0;
+        });
+        let winBonusCfg = parseInt(document.getElementById('cfg-bonus')?.value) || 0;
+        let restBonusCfg = parseInt(document.getElementById('cfg-rest-bonus')?.value) || 0;
+        players.forEach(p => {
+            let s = stats[p.id];
+            s.totalPts = s.points + (s.wins * winBonusCfg) + (s.rests * restBonusCfg);
+        });
+
+        players.sort((a, b) => {
+            if (a.isWalkout && !b.isWalkout) return 1; 
+            if (!a.isWalkout && b.isWalkout) return -1;
+            let sA = stats[a.id], sB = stats[b.id];
+            let sortPref = document.getElementById('cfg-sort')?.value || 'points';
+            if(sortPref === 'points') {
+                if (sB.totalPts !== sA.totalPts) return sB.totalPts - sA.totalPts;
+                if (sB.wins !== sA.wins) return sB.wins - sA.wins; return sB.diff - sA.diff;
+            } else {
+                if (sB.wins !== sA.wins) return sB.wins - sA.wins;
+                if (sB.totalPts !== sA.totalPts) return sB.totalPts - sA.totalPts; return sB.diff - sA.diff;
+            }
+        });
+
+        let isMarked = document.getElementById('cfg-type')?.value.includes('marked');
+
+        if (isBulkMode) {
+            let elBulk = document.getElementById('bulk-player-input');
+            if(elBulk) elBulk.value = players.map(p => {
+                let suffix = p.isWalkout ? ' [OFF]' : '';
+                return isMarked ? `${p.name} - ${p.tier}${suffix}` : `${p.name}${suffix}`;
+            }).join('\n');
+        } else {
+            let dyn = document.getElementById('dynamic-player-inputs');
+            if(dyn) dyn.innerHTML = ''; 
+            inputRowCount = 0;
+            players.forEach(p => addInputRow(false, p.id, p.name, p.tier, !p.isWalkout));
+            addInputRow(false, '', '', 'B', true); 
+        }
+        setView('config');
+    }
+    
+    function cancelEdit() { 
+        if (isTournamentStarted && originalPlayersState.length > 0) {
+            players = JSON.parse(JSON.stringify(originalPlayersState));
+            recalculateLeaderboard();
+        }
+        setView('manager'); 
+    }
+
+    // --- LEADERBOARD LOGIC ---
+    function recalculateLeaderboard() {
+        let stats = {}; players.forEach(p => { stats[p.id] = { games: 0, wins: 0, losses: 0, points: 0, diff: 0, rests: 0 }; });
+
+        Object.values(matches).forEach(m => {
+            if (m.score1 !== null && m.score2 !== null) {
+                m.t1.forEach(id => { if (stats[id]) { stats[id].games++; stats[id].points += m.score1; stats[id].diff += (m.score1 - m.score2); if (m.score1 > m.score2) stats[id].wins++; else if (m.score1 < m.score2) stats[id].losses++; } });
+                m.t2.forEach(id => { if (stats[id]) { stats[id].games++; stats[id].points += m.score2; stats[id].diff += (m.score2 - m.score1); if (m.score2 > m.score1) stats[id].wins++; else if (m.score2 < m.score1) stats[id].losses++; } });
+            }
+        });
+
+        players.forEach(p => {
+            if(!p.isWalkout && currentRound > 0) {
+                stats[p.id].rests = Math.max(0, currentRound - stats[p.id].games);
+            } else {
+                stats[p.id].rests = 0; 
+            }
+        });
+
+        let winBonusCfg = parseInt(document.getElementById('cfg-bonus')?.value) || 0;
+        let restBonusCfg = parseInt(document.getElementById('cfg-rest-bonus')?.value) || 0;
+        
+        let thW = document.getElementById('th-w-bonus');
+        if (thW) thW.style.display = winBonusCfg > 0 ? 'table-cell' : 'none';
+        
+        let thR = document.getElementById('th-r-bonus');
+        if (thR) thR.style.display = restBonusCfg > 0 ? 'table-cell' : 'none';
+
+        players.forEach(p => {
+            let s = stats[p.id];
+            s.totalPts = s.points + (s.wins * winBonusCfg) + (s.rests * restBonusCfg);
+        });
+
+        let sortedPlayers = [...players].sort((a, b) => {
+            if (a.isWalkout && !b.isWalkout) return 1; 
+            if (!a.isWalkout && b.isWalkout) return -1;
+            
+            let sA = stats[a.id], sB = stats[b.id];
+            let sortPref = document.getElementById('cfg-sort') ? document.getElementById('cfg-sort').value : 'points';
+            if(sortPref === 'points') {
+                if (sB.totalPts !== sA.totalPts) return sB.totalPts - sA.totalPts;
+                if (sB.wins !== sA.wins) return sB.wins - sA.wins; return sB.diff - sA.diff;
+            } else {
+                if (sB.wins !== sA.wins) return sB.wins - sA.wins;
+                if (sB.totalPts !== sA.totalPts) return sB.totalPts - sA.totalPts; return sB.diff - sA.diff;
+            }
+        });
+
+        let tbody = document.getElementById('leaderboard-body'); 
+        if(!tbody) return;
+        tbody.innerHTML = '';
+        
+        sortedPlayers.forEach((p, index) => {
+            let s = stats[p.id], isPlaying = p.status === 'playing';
+            let nameClass = isPlaying ? 'font-bold text-white' : 'text-slate-300';
+            
+            let inactiveBadge = p.isWalkout ? `<span class="bg-red-900/50 text-red-400 border border-red-700/50 text-[9px] px-1 py-0.5 rounded font-bold mr-1 tracking-wider">INACTIVE</span>` : '';
+            let opacityClass = p.isWalkout ? 'opacity-50' : '';
+
+            let tierLabel = `<span class="tier-badge text-[9px] px-1 py-0.5 rounded border inline-block align-middle font-bold ${getTierStyle(p.tier)} mr-1.5">${p.tier}</span>`;
+            
+            let cName = customCourtNames[p.court] || `L${p.court}`;
+            let courtLabel = isPlaying ? `<span class="text-[9px] px-1.5 py-0.5 rounded ml-2 shadow-sm border ${getCourtStyle(p.court)} whitespace-nowrap">${cName}</span>` : '';
+            
+            let winBonusStr = (s.wins * winBonusCfg) > 0 ? `+${s.wins * winBonusCfg}` : '0';
+            let restBonusStr = (s.rests * restBonusCfg) > 0 ? `+${s.rests * restBonusCfg}` : '0';
+            
+            let tdW = winBonusCfg > 0 ? `<td class="px-1 py-4 md:py-3 text-center text-emerald-400/70 font-mono text-xs whitespace-nowrap" title="Win Bonus">${winBonusStr}</td>` : '';
+            let tdR = restBonusCfg > 0 ? `<td class="px-1 py-4 md:py-3 text-center text-blue-400/70 font-mono text-xs whitespace-nowrap" title="Rest Bonus">${restBonusStr}</td>` : '';
+
+            tbody.innerHTML += `
+                <tr class="border-b border-slate-800 hover:bg-slate-700/50 transition ${opacityClass}">
+                    <td class="px-2 py-4 md:py-3 text-center text-slate-500 font-mono text-xs w-8 whitespace-nowrap">${index + 1}</td>
+                    <td class="pl-2 pr-3 py-4 md:py-3 ${nameClass} whitespace-nowrap flex items-center w-full">
+                        ${inactiveBadge}${tierLabel} <span class="truncate max-w-[90px] sm:max-w-[120px] inline-block align-middle">${p.name}</span> ${courtLabel}
+                    </td>
+                    <td class="px-1 py-4 md:py-3 text-center text-slate-400 font-mono">${s.games}</td>
+                    <td class="px-1 py-4 md:py-3 text-center text-slate-400 font-mono min-w-[60px] whitespace-nowrap">${s.wins}-${s.losses}</td>
+                    ${tdW}
+                    ${tdR}
+                    <td class="pr-3 pl-1 py-4 md:py-3 text-center font-mono ${s.diff > 0 ? 'text-green-500' : s.diff < 0 ? 'text-red-500' : 'text-slate-500'} whitespace-nowrap">${s.diff > 0 ? '+'+s.diff : s.diff}</td>
+                    <td class="px-2 py-4 md:py-3 text-center font-bold text-emerald-400 font-mono text-[15px] whitespace-nowrap">${s.totalPts}</td>
+                </tr>
+            `;
+        });
+
+        let elBal = document.getElementById('info-balance');
+        if(elBal) elBal.innerText = `Balance in: ${getBalanceText()}`;
+    }
+
+    // --- MATCHMAKING LOGIC ---
+    function generateNextRound() {
+        currentRound++; 
+        players.forEach(p => { if (!p.isWalkout) { p.status = 'rest'; p.court = null; }});
+
+        let availablePlayers = players.filter(p => !p.isWalkout), currentStats = {};
+        availablePlayers.forEach(p => { currentStats[p.id] = { games: 0, points: 0, wins: 0, diff: 0 }; });
+        
+        Object.values(matches).forEach(m => {
+            if (m.score1 !== null) {
+                m.t1.forEach(id => { if (currentStats[id]) { currentStats[id].games++; currentStats[id].points += m.score1; currentStats[id].diff += (m.score1 - m.score2); }});
+                m.t2.forEach(id => { if (currentStats[id]) { currentStats[id].games++; currentStats[id].points += m.score2; currentStats[id].diff += (m.score2 - m.score1); }});
+            }
+        });
+
+        let sortedForDraft = [...availablePlayers].sort((a, b) => {
+            let sA = currentStats[a.id], sB = currentStats[b.id];
+            if (sA.games !== sB.games) return sA.games - sB.games;
+            if (sB.points !== sA.points) return sB.points - sA.points;
+            if (sB.wins !== sA.wins) return sB.wins - sA.wins; return sB.diff - sA.diff;
+        });
+
+        let draftedPlayers = sortedForDraft.slice(0, numCourts * 4);
+        if (config.type.includes('marked') || currentRound <= 3) {
+            const tierVal = { 'A': 4, 'B': 3, 'C': 2, 'D': 1 };
+            draftedPlayers.sort((a, b) => tierVal[b.tier] - tierVal[a.tier]);
+        } else {
+            draftedPlayers.sort((a, b) => { let sA = currentStats[a.id], sB = currentStats[b.id]; return sB.points - sA.points; });
+        }
+
+        for (let i = 0; i < numCourts; i++) {
+            let courtId = i + 1, cPlayers = draftedPlayers.slice(i * 4, (i + 1) * 4);
+            if (cPlayers.length < 4) break; 
+            
+            let matchKey = `r${currentRound}-c${courtId}`;
+            matches[matchKey] = { round: currentRound, court: courtId, t1: [cPlayers[0].id, cPlayers[2].id], t2: [cPlayers[1].id, cPlayers[3].id], score1: null, score2: null };
+            cPlayers[0].status = 'playing'; cPlayers[0].court = courtId; cPlayers[2].status = 'playing'; cPlayers[2].court = courtId;
+            cPlayers[1].status = 'playing'; cPlayers[1].court = courtId; cPlayers[3].status = 'playing'; cPlayers[3].court = courtId;
+        }
+        
+        activeRoundTab = currentRound;
+        if(viewMode === 'pager') renderPager();
+        renderAllRounds(); 
+        recalculateLeaderboard();
+        
+        let lp = document.getElementById('left-scroll-area');
+        if(lp) lp.scrollTo({ top: lp.scrollHeight, behavior: 'smooth' });
+    }
+
+    function renderAllRounds() {
+        let container = document.getElementById('bracket-container');
+        if(!container) return;
+        
+        let roundsToRender = viewMode === 'list' ? Array.from({length: currentRound}, (_, i) => i + 1) : [activeRoundTab];
+
+        container.innerHTML = ''; 
+
+        roundsToRender.forEach(r => {
+            let wrapperId = `round-wrapper-${r}`;
+            let courtsContainerId = `round-${r}-courts`;
+            let animClass = (r === currentRound) ? 'round-enter' : '';
+
+            let html = `<div id="${wrapperId}" class="${animClass} mb-8">`;
+            
+            if (viewMode === 'list') {
+                html += `
+                <div class="mb-5 flex items-center justify-between">
+                    <h3 class="text-lg font-bold text-emerald-500 bg-slate-800 px-4 py-1.5 rounded-full border border-slate-700 shadow-sm">Round #${r}</h3>
+                    <div class="h-px bg-slate-700 flex-grow ml-4"></div>
+                </div>`;
+            }
+            
+            html += `<div class="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-10 pb-2" id="${courtsContainerId}"></div></div>`;
+            container.insertAdjacentHTML('beforeend', html);
+            
+            const courtsContainer = document.getElementById(courtsContainerId);
+            if(!courtsContainer) return;
+
+            Object.keys(matches).filter(k => matches[k].round === r).forEach(matchKey => {
+                let m = matches[matchKey], courtId = m.court;
+                let fallbackP = { name: 'Pilih Pemain', tier: '-' };
+                let p1 = players.find(x => x.id === m.t1[0]) || fallbackP, p2 = players.find(x => x.id === m.t1[1]) || fallbackP;
+                let p3 = players.find(x => x.id === m.t2[0]) || fallbackP, p4 = players.find(x => x.id === m.t2[1]) || fallbackP;
+
+                let cName = customCourtNames[courtId] || `Court ${courtId}`;
+                let s1 = m.score1 !== null ? String(m.score1).padStart(2,'0') : '00', s2 = m.score2 !== null ? String(m.score2).padStart(2,'0') : '00';
+                
+                let sc1 = 'bg-slate-700 text-slate-300 border-slate-600';
+                let sc2 = 'bg-slate-700 text-slate-300 border-slate-600';
+                let t1WinClass = '', t2WinClass = '';
+
+                if (m.score1 !== null && m.score2 !== null) {
+                    if (m.score1 > m.score2) {
+                        sc1 = 'bg-blue-500 text-white border-blue-600';
+                        sc2 = 'bg-slate-500 text-slate-200 border-slate-600';
+                        t1WinClass = 'bg-blue-900/20'; 
+                    } else if (m.score2 > m.score1) {
+                        sc2 = 'bg-blue-500 text-white border-blue-600';
+                        sc1 = 'bg-slate-500 text-slate-200 border-slate-600';
+                        t2WinClass = 'bg-blue-900/20';
+                    }
+                }
+                
+                let t1Tier1 = p1.tier !== '-' ? `<span class="tier-badge text-[8px] px-1 py-0.5 rounded border ${getTierStyle(p1.tier)}">${p1.tier}</span>` : '';
+                let t1Tier2 = p2.tier !== '-' ? `<span class="tier-badge text-[8px] px-1 py-0.5 rounded border ${getTierStyle(p2.tier)}">${p2.tier}</span>` : '';
+                let t2Tier1 = p3.tier !== '-' ? `<span class="tier-badge text-[8px] px-1 py-0.5 rounded border ${getTierStyle(p3.tier)}">${p3.tier}</span>` : '';
+                let t2Tier2 = p4.tier !== '-' ? `<span class="tier-badge text-[8px] px-1 py-0.5 rounded border ${getTierStyle(p4.tier)}">${p4.tier}</span>` : '';
+
+                courtsContainer.innerHTML += `
+                    <div class="relative bg-slate-800 rounded-xl shadow-md border border-slate-700 group mt-4">
+                        <div class="absolute -top-6 left-1/2 -translate-x-1/2 flex gap-1 z-10">
+                            <div onclick="openScoreModal('${matchKey}', 1)" class="w-14 h-14 flex items-center justify-center font-bold text-3xl rounded shadow-lg transition transform cursor-pointer active:scale-95 ${sc1}">${s1}</div>
+                            <div onclick="openScoreModal('${matchKey}', 2)" class="w-14 h-14 flex items-center justify-center font-bold text-3xl rounded shadow-lg transition transform cursor-pointer active:scale-95 ${sc2}">${s2}</div>
+                        </div>
+
+                        <div class="flex h-full">
+                            <div class="w-1/2 pt-6 pb-6 border-r border-slate-700/80 px-2 sm:px-4 flex flex-col justify-center gap-3 cursor-pointer hover:bg-slate-700/40 transition rounded-l-xl ${t1WinClass}" onclick="openScoreModal('${matchKey}', 1)">
+                                <div class="text-[15px] font-medium text-slate-200 truncate flex items-center gap-2">${t1Tier1} ${p1.name}</div>
+                                <div class="text-[15px] font-medium text-slate-200 truncate flex items-center gap-2">${t1Tier2} ${p2.name}</div>
+                            </div>
+                            <div class="w-1/2 pt-6 pb-6 px-2 sm:px-4 flex flex-col justify-center gap-3 text-right cursor-pointer hover:bg-slate-700/40 transition rounded-r-xl ${t2WinClass}" onclick="openScoreModal('${matchKey}', 2)">
+                                <div class="text-[15px] font-medium text-slate-200 truncate flex items-center justify-end gap-2">${p3.name} ${t2Tier1}</div>
+                                <div class="text-[15px] font-medium text-slate-200 truncate flex items-center justify-end gap-2">${p4.name} ${t2Tier2}</div>
+                            </div>
+                        </div>
+
+                        <div class="absolute -bottom-3.5 left-1/2 -translate-x-1/2 text-[11px] bg-slate-900 text-slate-300 px-4 py-2 rounded-full border border-slate-700 flex gap-2 items-center cursor-pointer hover:bg-slate-800 transition shadow-xl z-20" onclick="openSwapModal('${matchKey}')">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                            ${cName}
+                        </div>
+                    </div>
+                `;
+            });
+        });
+    }
+
+    // --- SCORE POPUP LOGIC ---
+    let activeScoreMatchKey = null, activeScoreTeamIndex = null;
+    function openScoreModal(matchKey, teamIndex) {
+        activeScoreMatchKey = matchKey; activeScoreTeamIndex = teamIndex; let m = matches[matchKey];
+        let p1 = players.find(x => x.id === (teamIndex === 1 ? m.t1[0] : m.t2[0])) || {name: 'Pemain 1'};
+        let p2 = players.find(x => x.id === (teamIndex === 1 ? m.t1[1] : m.t2[1])) || {name: 'Pemain 2'};
+        
+        let cName = customCourtNames[m.court] || `Court ${m.court}`;
+        let cStyle = getCourtStyle(m.court);
+        let elTitle = document.getElementById('score-modal-title');
+        if(elTitle) elTitle.innerHTML = `Edit Score <span class="px-2 py-0.5 rounded shadow-sm border text-[14px] align-middle ml-1 ${cStyle}">${cName}</span>`;
+        
+        let elNm = document.getElementById('score-modal-team-name'); 
+        if(elNm) elNm.innerText = `${p1.name} & ${p2.name}`;
+        
+        let grid = document.getElementById('score-grid'); if(!grid) return; grid.innerHTML = '';
+        let max = config.maxPoints;
+        for(let i = 0; i <= max; i++) grid.innerHTML += `<button type="button" onclick="setScore(${i})" class="bg-slate-700 hover:bg-blue-600 text-white font-bold py-3 rounded-lg transition">${i}</button>`;
+        document.getElementById('modal-score')?.classList.remove('hidden-important'); document.getElementById('modal-score')?.classList.add('flex');
+    }
+    
+    function closeScoreModal() { 
+        document.getElementById('modal-score')?.classList.add('hidden-important'); 
+        document.getElementById('modal-score')?.classList.remove('flex'); 
+    }
+    
+    function setScore(val) { 
+        let m = matches[activeScoreMatchKey]; 
+        if(val === null) {
+            m.score1 = null; m.score2 = null;
+        } else {
+            if (activeScoreTeamIndex === 1) { m.score1 = val; m.score2 = config.maxPoints - val; } 
+            else { m.score2 = val; m.score1 = config.maxPoints - val; } 
+        }
+        
+        closeScoreModal(); recalculateLeaderboard(); renderAllRounds(); renderPager();
+
+        if(val !== null) {
+            let currentRoundMatches = Object.values(matches).filter(x => x.round === currentRound);
+            let isAllScored = currentRoundMatches.every(x => x.score1 !== null && x.score2 !== null);
+            if(isAllScored) setTimeout(() => { generateNextRound(); }, 1000);
+        }
+    }
+
+    // --- SMART SWAP LOGIC ---
+    let swapState = { matchKey: null, selectedSlot: null, lastSwappedBtn: null }; 
+    
+    function openSwapModal(matchKey) {
+        swapState.matchKey = matchKey; swapState.selectedSlot = null;
+        let m = matches[matchKey];
+        
+        let cName = customCourtNames[m.court] || `Court ${m.court}`;
+        let cStyle = getCourtStyle(m.court);
+        let elTitle = document.getElementById('swap-modal-title');
+        if(elTitle) elTitle.innerHTML = `Edit Court <span class="px-2 py-0.5 rounded shadow-sm border text-[14px] align-middle ml-1 ${cStyle}">${cName}</span>`;
+        
+        renderSwapCourtSlots(); renderSwapList();
+        document.getElementById('modal-swap')?.classList.remove('hidden-important'); document.getElementById('modal-swap')?.classList.add('flex');
+    }
+
+    function closeSwapModal() { 
+        document.getElementById('modal-swap')?.classList.add('hidden-important'); 
+        document.getElementById('modal-swap')?.classList.remove('flex'); 
+    }
+
+    function renderSwapCourtSlots() {
+        let m = matches[swapState.matchKey];
+        let p = [players.find(x => x.id === m.t1[0]), players.find(x => x.id === m.t1[1]), players.find(x => x.id === m.t2[0]), players.find(x => x.id === m.t2[1])];
+        
+        const renderBtn = (btnId, playerObj, team, idx) => {
+            let btn = document.getElementById(btnId);
+            if(!btn) return;
+            let isSelected = swapState.selectedSlot && swapState.selectedSlot.team === team && swapState.selectedSlot.index === idx;
+            let isAnimating = swapState.lastSwappedBtn === btnId;
+            let animClass = isAnimating ? 'anim-swap' : '';
+            
+            let pStats = 0;
+            if (playerObj) {
+                pStats = Object.values(matches).reduce((acc, mx) => acc + (mx.score1 !== null && (mx.t1.includes(playerObj.id) || mx.t2.includes(playerObj.id)) ? 1 : 0), 0);
+            }
+
+            btn.className = `w-full py-3 px-3 rounded-lg text-center text-[13px] font-bold transition border ${isSelected ? 'bg-emerald-600 border-emerald-400 text-white ring-2 ring-emerald-300' : 'bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700'} ${animClass}`;
+            btn.innerHTML = playerObj ? `<div class="flex items-center justify-center"><span class="tier-badge text-[9px] px-1 py-0.5 rounded border font-mono ${getTierStyle(playerObj.tier)} mr-2">${playerObj.tier}</span> <span class="truncate max-w-[100px]">${playerObj.name}</span> <span class="text-[10px] text-slate-400 font-normal ml-1.5">(${pStats})</span></div>` : '<div class="opacity-50 font-bold text-sm my-auto">Kosong</div>';
+        };
+
+        renderBtn('slot-t1-0', p[0], 1, 0); renderBtn('slot-t1-1', p[1], 1, 1);
+        renderBtn('slot-t2-0', p[2], 2, 0); renderBtn('slot-t2-1', p[3], 2, 1);
+    }
+
+    function selectSlotToSwap(team, index) { swapState.selectedSlot = { team, index }; renderSwapCourtSlots(); }
+
+    function renderSwapList() {
+        let container = document.getElementById('swap-player-grid'); 
+        if(!container) return;
+        container.innerHTML = '';
+        let m = matches[swapState.matchKey];
+        let currentPlayersInMatch = [...m.t1, ...m.t2].filter(id => id !== null);
+        
+        let currentStats = {}; 
+        players.forEach(p => { currentStats[p.id] = { games: 0 }; });
+        Object.values(matches).forEach(mx => { 
+            if (mx.score1 !== null) { 
+                mx.t1.forEach(id => { if(currentStats[id]) currentStats[id].games++; }); 
+                mx.t2.forEach(id => { if(currentStats[id]) currentStats[id].games++; }); 
+            } 
+        });
+
+        let availablePlayers = players.filter(p => !p.isWalkout && !currentPlayersInMatch.includes(p.id)).map(p => {
+            let g = currentStats[p.id] ? currentStats[p.id].games : 0;
+            let c = 0;
+            Object.values(matches).filter(mx => mx.round === m.round && mx.court !== m.court).forEach(crm => {
+                if (crm.t1.includes(p.id) || crm.t2.includes(p.id)) { c = crm.court; }
+            });
+            return { ...p, games: g, assignedCourt: c };
+        });
+
+        const tierVal = { 'A': 1, 'B': 2, 'C': 3, 'D': 4 };
+        availablePlayers.sort((a, b) => {
+            if (a.assignedCourt !== b.assignedCourt) return a.assignedCourt - b.assignedCourt;
+            if (a.games !== b.games) return a.games - b.games;
+            return tierVal[a.tier] - tierVal[b.tier];
+        });
+
+        availablePlayers.forEach(p => {
+            let isAssignedOtherCourt = p.assignedCourt > 0;
+            let opacityClass = isAssignedOtherCourt ? 'opacity-50' : 'opacity-100';
+            
+            let cAssignedName = customCourtNames[p.assignedCourt] || `L${p.assignedCourt}`;
+            let courtBadge = isAssignedOtherCourt ? `<div class="absolute top-1 right-1"><span class="text-[8px] px-1.5 py-0.5 rounded shadow-sm border ${getCourtStyle(p.assignedCourt)}">${cAssignedName}</span></div>` : '';
+
+            container.innerHTML += `
+                <button type="button" onclick="executeSwap(${p.id})" class="relative p-2 rounded-xl border border-slate-600 bg-slate-800 hover:bg-slate-700 flex flex-col items-center justify-center transition ${opacityClass}">
+                    ${courtBadge}
+                    <span class="font-bold text-white text-sm truncate w-full text-center mt-2">${p.name}</span>
+                    <div class="flex items-center gap-1 mt-1">
+                        <span class="tier-badge text-[10px] px-1 py-0.5 rounded font-mono border ${getTierStyle(p.tier)}">${p.tier}</span>
+                        <span class="text-[10px] text-slate-300 font-bold font-mono bg-slate-900 px-2 py-0.5 rounded shadow-inner">${p.games}</span>
+                    </div>
+                </button>
+            `;
+        });
+    }
+
+    function executeSwap(newPlayerId) {
+        if(!swapState.selectedSlot) { alert('Pilih dulu slot pemain di lapangan atas yang mau diganti!'); return; }
+        let m = matches[swapState.matchKey];
+        
+        Object.values(matches).filter(mx => mx.round === m.round).forEach(rm => {
+            if (rm.t1.includes(newPlayerId)) rm.t1[rm.t1.indexOf(newPlayerId)] = null;
+            if (rm.t2.includes(newPlayerId)) rm.t2[rm.t2.indexOf(newPlayerId)] = null;
+        });
+
+        if(swapState.selectedSlot.team === 1) m.t1[swapState.selectedSlot.index] = newPlayerId; else m.t2[swapState.selectedSlot.index] = newPlayerId;
+        
+        players.forEach(p => { if (!p.isWalkout) { p.status = 'rest'; p.court = null; }});
+        Object.values(matches).filter(mx => mx.round === m.round).forEach(rm => {
+            [...rm.t1, ...rm.t2].forEach(id => { let p = players.find(x => x.id === id); if (p) { p.status = 'playing'; p.court = rm.court; }});
+        });
+
+        let targetBtnId = swapState.selectedSlot.team === 1 ? `slot-t1-${swapState.selectedSlot.index}` : `slot-t2-${swapState.selectedSlot.index}`;
+        swapState.lastSwappedBtn = targetBtnId;
+
+        swapState.selectedSlot = null; 
+        renderSwapCourtSlots(); renderSwapList(); renderAllRounds(); recalculateLeaderboard();
+        
+        setTimeout(() => { swapState.lastSwappedBtn = null; renderSwapCourtSlots(); }, 500);
+    }
+
+    document.addEventListener('keydown', function(event) { if (event.key === "Escape") { closeScoreModal(); closeSwapModal(); } });
+
+    window.addEventListener('load', () => {
+        window.generateRandomTestcase = generateRandomTestcase;
+        window.toggleInputMode = toggleInputMode;
+        window.deleteRow = deleteRow;
+        window.toggleActiveVisual = toggleActiveVisual;
+        window.modCourt = modCourt;
+        window.renderCourtNameInputs = renderCourtNameInputs;
+        window.startTournament = startTournament;
+        window.cancelEdit = cancelEdit;
+        window.goToSetup = goToSetup;
+        window.toggleLB = toggleLB;
+        window.toggleMarking = toggleMarking;
+        window.toggleRoundView = toggleRoundView;
+        window.openSwapModal = openSwapModal;
+        window.closeSwapModal = closeSwapModal;
+        window.selectSlotToSwap = selectSlotToSwap;
+        window.executeSwap = executeSwap;
+        window.openScoreModal = openScoreModal;
+        window.closeScoreModal = closeScoreModal;
+        window.setScore = setScore;
+        window.handleEnter = handleEnter;
+        window.updateMarkedMode = updateMarkedMode;
+        
+        renderCourtNameInputs(); 
+        initPlayerData(); 
+        updateMarkedMode(); // Call on load to set initial state
+        let mi = document.getElementById('mark-icon'); 
+        if(mi) mi.innerHTML = iconEyeOpen;
+    });
+
+</script>
+</body>
+</html>
